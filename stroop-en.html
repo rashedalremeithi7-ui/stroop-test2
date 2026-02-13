@@ -1,102 +1,50 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stroop Test</title>
-    <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
-    <script> (function(){ emailjs.init('YOUR_USER_ID'); })(); </script>
     <style>
-        body { font-family: Arial, sans-serif; }
-        #test { display: none; }
-        #results { display: none; }
+        body { font-family: Arial, sans-serif; background-color: #f0f0f0; }
+        .container { text-align: center; margin-top: 50px; }
+        .color-button {
+            width: 100px;
+            height: 100px;
+            border: none;
+            margin: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            color: white;
+            outline: none;
+        }
     </style>
 </head>
 <body>
-    <h1>Stroop Test</h1>
-    <button id="startPractice">Start Practice</button>
-    <div id="test">
-        <h2 id="colorName"></h2>
-        <button class="colorButton">Red</button>
-        <button class="colorButton">Green</button>
-        <button class="colorButton">Blue</button>
-        <button class="colorButton">Yellow</button>
+    <div class="container">
+        <h1>Stroop Color Test</h1>
+        <p>Thank you for participating in this study. Press the button matching the ink color as fast as possible. There will be congruent (word matches color) and incongruent trials.</p>
+        <button class="color-button" style="background-color: red;" onclick="sendResult('red')">Red</button>
+        <button class="color-button" style="background-color: green;" onclick="sendResult('green')">Green</button>
+        <button class="color-button" style="background-color: blue;" onclick="sendResult('blue')">Blue</button>
+        <button class="color-button" style="background-color: yellow;" onclick="sendResult('yellow')">Yellow</button>
     </div>
-    <div id="results">
-        <h2>Your Results</h2>
-        <p id="accuracy"></p>
-    </div>
-    <button id="startReal">Start Real Trials</button>
+    <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
     <script>
-        let practiceTrials = 5;
-        let realTrials = 10;
-        let trials = [];
-        let currentTrial = 0;
-        let correctAnswers = 0;
-        let startTime, endTime;
+        (function () {
+            emailjs.init('user_YOUR_USER_ID'); // Replace with your EmailJS user ID
+        })();
 
-        document.getElementById('startPractice').onclick = () => { 
-            startTrials(practiceTrials); 
-        };
-
-        document.getElementById('startReal').onclick = () => {
-            startTrials(realTrials);
-        };
-
-        function startTrials(numTrials) {
-            trials = generateTrials(numTrials);
-            currentTrial = 0;
-            correctAnswers = 0;
-            document.getElementById('test').style.display = 'block';
-            showTrial();
-        }
-
-        function generateTrials(numTrials) {
-            let colors = ['Red', 'Green', 'Blue', 'Yellow'];
-            let generatedTrials = [];
-            for (let i = 0; i < numTrials; i++) {
-                let color = colors[Math.floor(Math.random() * colors.length)];
-                generatedTrials.push(color);
-            }
-            return generatedTrials;
-        }
-
-        function showTrial() {
-            if (currentTrial < trials.length) {
-                document.getElementById('colorName').innerText = trials[currentTrial];
-                startTime = new Date();
-            } else {
-                endTest();
-            }
-        }
-
-        function endTest() {
-            document.getElementById('test').style.display = 'none';
-            document.getElementById('results').style.display = 'block';
-            document.getElementById('accuracy').innerText = `You got ${correctAnswers} out of ${trials.length} correct.`;
-            sendResults();
-        }
-
-        document.querySelectorAll('.colorButton').forEach(button => {
-            button.onclick = () => {
-                let responseTime = (new Date() - startTime) / 1000;
-                if (button.innerText === trials[currentTrial]) {
-                    correctAnswers++;
-                }
-                currentTrial++;
-                showTrial();
+        function sendResult(color) {
+            const templateParams = {
+                color: color,
+                // Add other parameters as needed
             };
-        });
-
-        function sendResults() {
-            let results = {
-                to_email: 'rashedalremeithi7@gmail.com',
-                message: `Test completed! Results: ${correctAnswers} out of ${trials.length} correct.`
-            };
-            emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', results)
-                .then((response) => {
+            emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams)
+                .then(function (response) {
                     console.log('SUCCESS!', response.status, response.text);
-                }, (error) => {
+                }, function (error) {
                     console.log('FAILED...', error);
-                }); 
+                });
         }
     </script>
 </body>
