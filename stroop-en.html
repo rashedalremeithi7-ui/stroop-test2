@@ -1,51 +1,219 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" dir="ltr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stroop Test</title>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #f0f0f0; }
-        .container { text-align: center; margin-top: 50px; }
-        .color-button {
-            width: 100px;
-            height: 100px;
-            border: none;
-            margin: 10px;
-            cursor: pointer;
-            font-size: 24px;
-            color: white;
-            outline: none;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <title>Stroop Test — English</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: "Segoe UI", system-ui, Arial, sans-serif; display:flex; flex-direction:column; align-items:center; padding:24px; text-align:center; }
+    #stage { margin-top:40px; font-size:48px; height:120px; display:flex; align-items:center; justify-content:center; }
+    .controls { margin-top:20px; display:flex; gap:8px; flex-wrap:wrap; }
+    button.color-btn { padding:14px 22px; font-size:18px; border-radius:6px; border:1px solid #ccc; cursor:pointer;}
+    #status { margin-top:20px; }
+    #start { margin-top:16px; padding:8px 14px; }
+    .small { font-size:14px; color:#444; margin-top:10px; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Stroop Color Test</h1>
-        <p>Thank you for participating in this study. Press the button matching the ink color as fast as possible. There will be congruent (word matches color) and incongruent trials.</p>
-        <button class="color-button" style="background-color: red;" onclick="sendResult('red')">Red</button>
-        <button class="color-button" style="background-color: green;" onclick="sendResult('green')">Green</button>
-        <button class="color-button" style="background-color: blue;" onclick="sendResult('blue')">Blue</button>
-        <button class="color-button" style="background-color: yellow;" onclick="sendResult('yellow')">Yellow</button>
-    </div>
-    <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
-    <script>
-        (function () {
-            emailjs.init('user_YOUR_USER_ID'); // Replace with your EmailJS user ID
-        })();
+  <h1>Stroop Test (English)</h1>
+  <div id="instructions">
+    Press the button that matches the ink color as fast as possible. There will be congruent trials (word and ink color match) and incongruent trials.
+  </div>
 
-        function sendResult(color) {
-            const templateParams = {
-                color: color,
-                // Add other parameters as needed
-            };
-            emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams)
-                .then(function (response) {
-                    console.log('SUCCESS!', response.status, response.text);
-                }, function (error) {
-                    console.log('FAILED...', error);
-                });
-        }
-    </script>
+  <div id="stage" aria-live="polite">Ready</div>
+
+  <div class="controls" id="buttons"></div>
+
+  <div>
+    <button id="start">Start</button>
+    <button id="export">Export CSV</button>
+  </div>
+
+  <div id="status"></div>
+  <div class="small">Tip: Use number keys 1–4 to respond (shown on the buttons).</div>
+
+<script>
+(() => {
+  // English color names mapped to the same ink colors
+  const colors = [
+    { name: 'Red',    key:'1', hex:'#e53935' },
+    { name: 'Green',  key:'2', hex:'#43a047' },
+    { name: 'Blue',   key:'3', hex:'#1e88e5' },
+    { name: 'Yellow', key:'4', hex:'#f4b400' },
+  ];
+  const TRIALS = 40;
+  const PRACTICE = 6;
+  const interStimMs = 500;
+
+  const stage = document.getElementById('stage');
+  const btns = document.getElementById('buttons');
+  const startBtn = document.getElementById('start');
+  const exportBtn = document.getElementById('export');
+  const status = document.getElementById('status');
+
+  colors.forEach((c) => {
+    const b = document.createElement('button');
+    b.className = 'color-btn';
+    b.style.background = '#fff';
+    b.style.borderColor = '#ccc';
+    b.textContent = `${c.key} — ${c.name}`;
+    b.dataset.color = c.name;
+    b.addEventListener('click', () => handleResponse(c.name));
+    btns.appendChild(b);
+  });
+
+  let trials = [];
+  let currentIndex = -1;
+  let trialStart = 0;
+  let running = false;
+  let practiceMode = false;
+
+  function randomInt(n){ return Math.floor(Math.random()*n); }
+  function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=randomInt(i+1); [arr[i],arr[j]]=[arr[j],arr[i]]; } }
+  function mkTrial(word, ink, isPractice=false){ return { word, ink, isCongruent: word===ink, isPractice, rt:null, correct:null, timestamp:null }; }
+  function buildTrials(total, practice=false){
+    const list = [];
+    for(let i=0;i<total;i++){
+      const word = colors[randomInt(colors.length)].name;
+      const congruent = Math.random() < 0.5;
+      let ink = congruent ? word : colors.filter(c=>c.name!==word)[randomInt(colors.length-1)].name;
+      list.push(mkTrial(word, ink, practice));
+    }
+    shuffle(list);
+    return list;
+  }
+
+  function prepareRun(){
+    trials = buildTrials(PRACTICE, true).concat(buildTrials(TRIALS, false));
+    currentIndex = -1;
+    running = true;
+    practiceMode = true;
+    status.textContent = `Practice: ${PRACTICE} trials. Get ready...`;
+    nextTrial();
+  }
+
+  function nextTrial(){
+    currentIndex++;
+    if(currentIndex >= trials.length){
+      running = false;
+      showResults();
+      return;
+    }
+    const t = trials[currentIndex];
+    stage.textContent = '';
+    stage.style.color = '#000';
+    setTimeout(()=> displayStimulus(t), interStimMs);
+  }
+
+  function displayStimulus(trial){
+    const inkColor = colors.find(c=>c.name===trial.ink).hex;
+    stage.textContent = trial.word;
+    stage.style.color = inkColor;
+    trialStart = performance.now();
+    trial.timestamp = Date.now();
+  }
+
+  function handleResponse(selectedColorName){
+    if(!running || currentIndex < 0 || currentIndex >= trials.length) return;
+    const rt = performance.now() - trialStart;
+    const t = trials[currentIndex];
+    if(t.rt !== null) return;
+    t.rt = rt;
+    t.correct = (selectedColorName === t.ink);
+    if(t.isPractice){
+      stage.textContent = t.correct ? '✓' : '✕';
+      stage.style.color = t.correct ? '#2e7d32' : '#c62828';
+      if(currentIndex === PRACTICE - 1){
+        practiceMode = false;
+        status.textContent = 'Practice finished — starting real trials.';
+      }
+      setTimeout(nextTrial, 600);
+    } else {
+      nextTrial();
+    }
+  }
+
+  window.addEventListener('keydown', (e) => {
+    const key = e.key;
+    const c = colors.find(col => col.key === key);
+    if(c) handleResponse(c.name);
+  });
+
+  startBtn.addEventListener('click', () => { if(!running) prepareRun(); });
+
+  function computeSummary(){
+    const real = trials.filter(t=>!t.isPractice && t.rt!=null);
+    const byCond = { congruent: real.filter(r=>r.isCongruent), incongruent: real.filter(r=>!r.isCongruent) };
+    function avg(arr){ if(arr.length===0) return null; return arr.reduce((s,x)=>s+x.rt,0)/arr.length; }
+    function accuracy(arr){ if(arr.length===0) return null; return arr.filter(x=>x.correct).length/arr.length; }
+    const perWord = {};
+    colors.forEach(c => perWord[c.name] = { rts:[], avgRT:null, count:0, correctCount:0 });
+    real.forEach(r => {
+      perWord[r.word].rts.push(r.rt);
+      perWord[r.word].count++;
+      if(r.correct) perWord[r.word].correctCount++;
+    });
+    Object.keys(perWord).forEach(w=> {
+      const a = perWord[w].rts;
+      perWord[w].avgRT = a.length ? a.reduce((s,x)=>s+x,0)/a.length : null;
+      perWord[w].accuracy = perWord[w].count ? perWord[w].correctCount / perWord[w].count : null;
+    });
+    const summary = {
+      totalTrials: real.length,
+      congruentCount: byCond.congruent.length,
+      incongruentCount: byCond.incongruent.length,
+      avgRT_congruent: avg(byCond.congruent),
+      avgRT_incongruent: avg(byCond.incongruent),
+      accuracy_congruent: accuracy(byCond.congruent),
+      accuracy_incongruent: accuracy(byCond.incongruent),
+      overallAvgRT: avg(real),
+      overallAccuracy: accuracy(real),
+      perWord
+    };
+    return { summary, trials: real };
+  }
+
+  function showResults(){
+    const { summary } = computeSummary();
+    status.innerHTML = `
+      Finished.<br/>
+      Total: ${summary.totalTrials}. Overall accuracy: ${(summary.overallAccuracy*100||0).toFixed(1)}%. Overall average RT: ${(summary.overallAvgRT||0).toFixed(0)} ms.<br/>
+      Average (congruent): ${(summary.avgRT_congruent||0).toFixed(0)} ms (acc ${(summary.accuracy_congruent*100||0).toFixed(1)}%).<br/>
+      Average (incongruent): ${(summary.avgRT_incongruent||0).toFixed(0)} ms (acc ${(summary.accuracy_incongruent*100||0).toFixed(1)}%).`;
+    let perWordText = '<br/>Per-word averages:<ul>';
+    Object.entries(summary.perWord).forEach(([word,stats]) => {
+      perWordText += `<li>${word}: avg ${(stats.avgRT||0).toFixed(0)} ms — acc ${(stats.accuracy*100||0).toFixed(1)}% (${stats.count} trials)</li>`;
+    });
+    perWordText += '</ul>';
+    status.innerHTML += perWordText;
+  }
+
+  function exportCSV(){
+    const { summary, trials: data } = computeSummary();
+    if(!data || data.length===0){ alert('No data to export'); return; }
+    const header = ['trialIndex','word','ink','isCongruent','rt_ms','correct','timestamp'];
+    const rows = data.map((t, i) => [i+1, t.word, t.ink, t.isCongruent, Math.round(t.rt), t.correct, t.timestamp]);
+    const csv = [header.join(',')].concat(rows.map(r => r.map(cell => `"${cell}"`).join(','))).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stroop_trials_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const summaryBlob = new Blob([JSON.stringify(summary,null,2)], { type: 'application/json' });
+    const sUrl = URL.createObjectURL(summaryBlob);
+    const sa = document.createElement('a');
+    sa.href = sUrl;
+    sa.download = `stroop_summary_${Date.now()}.json`;
+    sa.click();
+    URL.revokeObjectURL(sUrl);
+  }
+
+  exportBtn.addEventListener('click', exportCSV);
+
+})();
+</script>
 </body>
 </html>
